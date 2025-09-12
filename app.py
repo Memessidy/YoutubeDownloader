@@ -94,7 +94,7 @@ class App(customtkinter.CTk):
 
     def toggle_download(self):
         url = self.checkbox_frame.entry.get().strip()
-        if not url:
+        if not url or len(url) > 250:
             CTkMessagebox(title="Error ❌", message="Enter URL!", icon="cancel")
             return
         elif self.downloading:
