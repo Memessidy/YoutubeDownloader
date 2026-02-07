@@ -1,5 +1,7 @@
+import yaml
 import yt_dlp
 import threading
+
 
 class YTDownloader:
     def __init__(self, progress_callback=None, finish_callback=None, error_callback=None):
@@ -11,16 +13,15 @@ class YTDownloader:
     def stop(self):
         self.stop_event.set()
 
+    def load_ydl_opts(self):
+        with open('yt-dlp-config.yaml', 'r', encoding='utf-8') as f:
+            cfg = yaml.safe_load(f)
+
+        cfg['progress_hooks'] = [self.my_hook]
+        return cfg
+
     def download_from_youtube(self, url):
-        ydl_opts = {
-            'format': 'bv*+ba/b',
-            'merge_output_format': 'mp4',
-            # 'outtmpl': './Downloads/%(title)s%(autonumber)02d.%(ext)s',
-            'outtmpl': './Downloads/%(title).100s%(autonumber)02d.%(ext)s',
-            # 'cachedir': './cache',
-            'progress_hooks': [self.my_hook],
-            'overwrites': False,
-        }
+        ydl_opts = self.load_ydl_opts()
 
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
