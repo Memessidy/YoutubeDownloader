@@ -489,7 +489,7 @@ def main():
     # Налаштування теми customtkinter
     ctk.set_appearance_mode("dark")
     ctk.set_default_color_theme("blue")
-    app = YouTubeDownloaderGUI(program_name='Завантаєувач з ютубу 😎')
+    app = YouTubeDownloaderGUI(program_name='Завантажувач з ютубу 😎')
     app.run()
 
 
