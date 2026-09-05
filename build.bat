@@ -18,6 +18,31 @@ if errorlevel 1 (
     exit /b 1
 )
 
+:: Перевіряємо FFmpeg і FFprobe в PATH
+for /f "delims=" %%F in ('where ffmpeg 2^>nul') do (
+    if not defined FFMPEG_EXE set "FFMPEG_EXE=%%F"
+)
+for /f "delims=" %%F in ('where ffprobe 2^>nul') do (
+    if not defined FFPROBE_EXE set "FFPROBE_EXE=%%F"
+)
+
+if not defined FFMPEG_EXE (
+    echo [ERROR] ffmpeg.exe not found in PATH.
+    echo [INFO] Install FFmpeg or add its bin folder to PATH before building.
+    pause
+    exit /b 1
+)
+
+if not defined FFPROBE_EXE (
+    echo [ERROR] ffprobe.exe not found in PATH.
+    echo [INFO] Install FFmpeg or add its bin folder to PATH before building.
+    pause
+    exit /b 1
+)
+
+echo [OK] FFmpeg: !FFMPEG_EXE!
+echo [OK] FFprobe: !FFPROBE_EXE!
+
 :: Створюємо віртуальне середовище якщо немає
 if not exist %ENV_DIR% (
     echo [1/5] Creating virtual environment...
@@ -72,7 +97,7 @@ for /f "tokens=1,* delims=: " %%A in ('pip show customtkinter ^| findstr "Locati
 )
 set "CUSTOMTKINTER_PATH=!CUSTOMTKINTER_PATH: =!"
 
-:: Формуємо шлях для add-data (правильний формат для Windows)
+:: Формуємо шлях для add-data
 set "ADD_DATA=!CUSTOMTKINTER_PATH!\customtkinter;customtkinter/"
 
 echo.
@@ -92,6 +117,10 @@ if exist "!CUSTOMTKINTER_PATH!\customtkinter" (
     echo [WARNING] customtkinter path not found!
 )
 
+:: Вбудовуємо FFmpeg і FFprobe в один exe
+set "BUILD_CMD=!BUILD_CMD! --add-binary "!FFMPEG_EXE!;bin""
+set "BUILD_CMD=!BUILD_CMD! --add-binary "!FFPROBE_EXE!;bin""
+
 :: Додаємо додаткові приховані імпорти
 set "BUILD_CMD=!BUILD_CMD! --hidden-import yt_dlp"
 set "BUILD_CMD=!BUILD_CMD! --hidden-import yt_dlp.extractor"
@@ -99,7 +128,7 @@ set "BUILD_CMD=!BUILD_CMD! --hidden-import yt_dlp.downloader"
 set "BUILD_CMD=!BUILD_CMD! --hidden-import customtkinter"
 set "BUILD_CMD=!BUILD_CMD! --hidden-import tkinter"
 
-:: Додаємо іконку як data file (щоб вона була доступна в exe)
+:: Додаємо іконку як data file
 if exist "%ICON_FILE%" (
     set "BUILD_CMD=!BUILD_CMD! --add-data "%ICON_FILE%;.""
 )
