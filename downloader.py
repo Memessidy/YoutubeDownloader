@@ -2,6 +2,7 @@ import yt_dlp
 import os
 import sys
 import threading
+import shutil
 from typing import Dict, List, Tuple, Optional, Callable
 
 
@@ -17,6 +18,14 @@ def get_ffmpeg_location() -> Optional[str]:
         return local_bin
 
     return None
+
+
+def get_js_runtimes() -> Dict:
+    """Use bundled Node.js in the executable, or a local runtime in development."""
+    base_path = getattr(sys, '_MEIPASS', os.path.dirname(os.path.abspath(__file__)))
+    bundled_node = os.path.join(base_path, 'bin', 'node.exe')
+    node_path = bundled_node if os.path.isfile(bundled_node) else shutil.which('node')
+    return {'node': {'path': node_path}} if node_path else {'deno': {}}
 
 
 class YouTubeDownloader:
@@ -52,6 +61,8 @@ class YouTubeDownloader:
                 'quiet': True,
                 'no_warnings': True,
                 'extract_flat': False,
+                'noplaylist': True,
+                'js_runtimes': get_js_runtimes(),
             }
 
             ffmpeg_location = get_ffmpeg_location()
@@ -131,7 +142,9 @@ class YouTubeDownloader:
                 'progress_hooks': [progress_hook],
                 'quiet': True,
                 'no_warnings': False,
-                'ignoreerrors': True,
+                'ignoreerrors': False,
+                'noplaylist': True,
+                'js_runtimes': get_js_runtimes(),
                 'postprocessors': [{
                     'key': 'FFmpegVideoConvertor',
                     'preferedformat': 'mp4',
@@ -160,18 +173,32 @@ class YouTubeDownloader:
 
     def _download_thread(self, url: str, ydl_opts: Dict):
         """Потік для завантаження"""
-        try:
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                ydl.download([url])
+        completed_files = []
 
-            self.is_downloading = False
-            if self.complete_callback:
-                self.complete_callback()
+        def verify_download(filename):
+            # yt-dlp calls this after conversion/merging and the final move.
+            if not os.path.isfile(filename) or os.path.getsize(filename) == 0:
+                raise RuntimeError("Готовий відеофайл не знайдено або він порожній")
+            completed_files.append(filename)
+
+        options = dict(ydl_opts)
+        options['post_hooks'] = [*options.get('post_hooks', []), verify_download]
+        try:
+            with yt_dlp.YoutubeDL(options) as ydl:
+                result = ydl.download([url])
+            if result != 0:
+                raise RuntimeError(f"Завантаження завершилося з помилкою (код {result})")
+            if not completed_files:
+                raise RuntimeError("Відео не завантажено: готовий файл не створено")
 
         except Exception as e:
             self.is_downloading = False
             if self.error_callback:
                 self.error_callback(f"Помилка при завантаженні: {str(e)}")
+        else:
+            self.is_downloading = False
+            if self.complete_callback:
+                self.complete_callback()
 
     def _get_format_selector(self, quality: int) -> str:
         """

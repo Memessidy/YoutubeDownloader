@@ -5,7 +5,7 @@ import os
 import sys
 import re
 from typing import Optional
-from downloader import YouTubeDownloader
+from downloader import YouTubeDownloader, get_js_runtimes
 
 
 
@@ -313,7 +313,8 @@ class YouTubeDownloaderGUI:
         duration = None
         try:
             import yt_dlp
-            ydl_opts = {'quiet': True, 'no_warnings': True}
+            ydl_opts = {'quiet': True, 'no_warnings': True, 'noplaylist': True,
+                        'js_runtimes': get_js_runtimes()}
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(url, download=False)
                 duration = info.get('duration')
@@ -445,8 +446,11 @@ class YouTubeDownloaderGUI:
         """Показ помилки"""
 
         def show():
-            messagebox.showerror("Помилка", error_msg)
             self.reset_ui()
+            self.progress_bar.set(0)
+            self.speed_label.configure(text="")
+            self.status_label.configure(text="❌ Помилка завантаження", text_color="red")
+            messagebox.showerror("Помилка", error_msg)
 
         self.root.after(0, show)
 

@@ -1,9 +1,22 @@
 @echo off
 setlocal enabledelayedexpansion
+cd /d "%~dp0"
 
 set "ENV_DIR=.venv"
 set "APP_NAME=YouTubeDownloader"
 set "ICON_FILE=icon.ico"
+set "FFMPEG_EXE="
+set "FFPROBE_EXE="
+set "NODE_EXE="
+for /f "delims=" %%F in ('where node 2^>nul') do (
+    if not defined NODE_EXE set "NODE_EXE=%%F"
+)
+if not defined NODE_EXE (
+    echo [ERROR] Node.js 22 or newer is required in PATH for YouTube support.
+    exit /b 1
+)
+"!NODE_EXE!" -e "process.exit(Number(process.versions.node.split('.')[0]) >= 22 ? 0 : 1)"
+if errorlevel 1 exit /b 1
 
 echo ========================================
 echo YouTube Downloader Build Script
@@ -72,6 +85,8 @@ if not exist %ENV_DIR% (
 )
 
 :: Перевіряємо наявність PyInstaller
+python -m pip install -r requirements.txt
+if errorlevel 1 exit /b 1
 echo [3/5] Checking PyInstaller...
 pip show pyinstaller >nul 2>&1
 if errorlevel 1 (
@@ -95,7 +110,6 @@ echo Getting customtkinter path...
 for /f "tokens=1,* delims=: " %%A in ('pip show customtkinter ^| findstr "Location:"') do (
     set "CUSTOMTKINTER_PATH=%%B"
 )
-set "CUSTOMTKINTER_PATH=!CUSTOMTKINTER_PATH: =!"
 
 :: Формуємо шлях для add-data
 set "ADD_DATA=!CUSTOMTKINTER_PATH!\customtkinter;customtkinter/"
@@ -107,7 +121,7 @@ echo ========================================
 echo.
 
 :: Збираємо команду PyInstaller
-set "BUILD_CMD=pyinstaller --noconfirm --windowed %ICON_ARG% --onefile --name %APP_NAME%"
+set "BUILD_CMD=pyinstaller --noconfirm --windowed %ICON_ARG% --onedir --name %APP_NAME%"
 
 :: Додаємо customtkinter як data file
 if exist "!CUSTOMTKINTER_PATH!\customtkinter" (
@@ -117,9 +131,11 @@ if exist "!CUSTOMTKINTER_PATH!\customtkinter" (
     echo [WARNING] customtkinter path not found!
 )
 
-:: Вбудовуємо FFmpeg і FFprobe в один exe
+:: Додаємо FFmpeg, FFprobe і Node.js до папки програми
 set "BUILD_CMD=!BUILD_CMD! --add-binary "!FFMPEG_EXE!;bin""
 set "BUILD_CMD=!BUILD_CMD! --add-binary "!FFPROBE_EXE!;bin""
+set "BUILD_CMD=!BUILD_CMD! --add-binary "!NODE_EXE!;bin""
+set "BUILD_CMD=!BUILD_CMD! --collect-all yt_dlp_ejs"
 
 :: Додаємо додаткові приховані імпорти
 set "BUILD_CMD=!BUILD_CMD! --hidden-import yt_dlp"
@@ -185,10 +201,10 @@ echo ========================================
 echo Build completed successfully!
 echo ========================================
 echo.
-if exist builded\%APP_NAME%.exe (
-    echo Executable: builded\%APP_NAME%.exe
+if exist builded\%APP_NAME%\%APP_NAME%.exe (
+    echo Executable: builded\%APP_NAME%\%APP_NAME%.exe
     echo Size:
-    dir builded\%APP_NAME%.exe | find "%APP_NAME%.exe"
+    dir builded\%APP_NAME%\%APP_NAME%.exe | find "%APP_NAME%.exe"
 ) else (
     echo [ERROR] Executable not found in builded folder!
 )
