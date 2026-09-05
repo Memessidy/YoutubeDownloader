@@ -1,7 +1,22 @@
 import yt_dlp
 import os
+import sys
 import threading
 from typing import Dict, List, Tuple, Optional, Callable
+
+
+def get_ffmpeg_location() -> Optional[str]:
+    """Return FFmpeg directory for packaged or development mode."""
+    if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
+        bundled_bin = os.path.join(sys._MEIPASS, 'bin')
+        if os.path.exists(os.path.join(bundled_bin, 'ffmpeg.exe')):
+            return bundled_bin
+
+    local_bin = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'bin')
+    if os.path.exists(os.path.join(local_bin, 'ffmpeg.exe')):
+        return local_bin
+
+    return None
 
 
 class YouTubeDownloader:
@@ -39,20 +54,21 @@ class YouTubeDownloader:
                 'extract_flat': False,
             }
 
+            ffmpeg_location = get_ffmpeg_location()
+            if ffmpeg_location:
+                ydl_opts['ffmpeg_location'] = ffmpeg_location
+
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(url, download=False)
                 title = info.get('title', 'Unknown')
 
-                # Отримуємо доступні якості
                 formats = info.get('formats', [])
                 qualities = set()
 
                 for f in formats:
                     height = f.get('height')
                     vcodec = f.get('vcodec')
-                    acodec = f.get('acodec')
 
-                    # Перевіряємо наявність відео та аудіо (або можливість об'єднання)
                     if height and height in [480, 720, 1080, 144, 240, 360, 2160]:
                         if vcodec != 'none':
                             qualities.add(height)
@@ -105,11 +121,9 @@ class YouTubeDownloader:
         try:
             self.is_downloading = True
 
-            # Перевіряємо та створюємо папку призначення
             if not os.path.exists(output_path):
                 os.makedirs(output_path)
 
-            # Формуємо опції для yt-dlp
             ydl_opts = {
                 'format': self._get_format_selector(quality),
                 'outtmpl': os.path.join(output_path, filename_template),
@@ -124,10 +138,13 @@ class YouTubeDownloader:
                 }],
             }
 
+            ffmpeg_location = get_ffmpeg_location()
+            if ffmpeg_location:
+                ydl_opts['ffmpeg_location'] = ffmpeg_location
+
             if self.status_callback:
                 self.status_callback(f"Починаю завантаження в якості {quality}p...")
 
-            # Запускаємо завантаження в окремому потоці
             download_thread = threading.Thread(target=self._download_thread,
                                                args=(url, ydl_opts))
             download_thread.daemon = True
@@ -163,7 +180,6 @@ class YouTubeDownloader:
         Args:
             quality: Бажана якість відео
         """
-        # Пріоритет: відео з аудіо, потім відео + аудіо окремо
         return f'bestvideo[height<={quality}]+bestaudio/best[height<={quality}]'
 
     def cancel_download(self):
